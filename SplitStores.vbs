@@ -1,40 +1,37 @@
 Sub testfirst()
-    Dim objExcel, objWorkbook, objSheet, objFSO, outputFolder, storeDict, objLogFile
+    Dim objExcel, objWorkbook, objSheet, objFSO, outputFolder, storeList, objLogFile
     Set objExcel = CreateObject("Excel.Application")
     objExcel.Visible = False 
     Set objWorkbook = objExcel.Workbooks.Open("C:\Users\Leonid.ksenchuk\Desktop\TaskArtur2\testData (4).xlsx")
     Set objSheet = objWorkbook.Sheets(1)
-    outputFolder = "C:\Users\Leonid.ksenchuk\Desktop\TaskArtur2\output\"
+    outputFolder = "C:\Users\Leonid.ksenchuk\Desktop\TaskArtur2\output"
     Set objFSO = CreateObject("Scripting.FileSystemObject")
     If Not objFSO.FolderExists(outputFolder) Then objFSO.CreateFolder outputFolder
-    Set storeDict = CreateObject("Scripting.Dictionary")
-    Set objLogFile = objFSO.CreateTextFile(outputFolder & "log.txt", True)
+    Set storeList = CreateObject("System.Collections.ArrayList")
+    Set objLogFile = objFSO.CreateTextFile(outputFolder & "\log.txt", True)
 
-    ' Збір унікальних магазинів
     Dim row, store
     For row = 2 To GetLastRow(objSheet)
         store = Trim(objSheet.Cells(row, 4).Value)
-        If Not storeDict.Exists(store) And store <> "" Then
-            storeDict.Add store, True
+        If Not storeList.Contains(store) And store <> "" Then
+            storeList.Add store
         End If
     Next
-    LogMessage objLogFile, "Total unique stores: " & storeDict.Count
+    LogMessage objLogFile, "Total unique stores: " & storeList.Count
 
-    ' Експорт даних для кожного магазину
-    Dim objNewWorkbook, objNewSheet, col, newRow, objTxtFile
-    For Each store In storeDict.Keys
+    Dim objNewWorkbook, objNewSheet, col, newRow
+    For Each store In storeList
         Set objNewWorkbook = objExcel.Workbooks.Add
         Set objNewSheet = objNewWorkbook.Sheets(1)
 
-        ' Запис заголовків
-        For col = 1 To GetLastCol(objSheet)
+        For col = 1 To objSheet.UsedRange.Columns.Count
             objNewSheet.Cells(1, col).Value = objSheet.Cells(1, col).Value
         Next
 
         newRow = 2
         For row = 2 To GetLastRow(objSheet)
             If Trim(objSheet.Cells(row, 4).Value) = store Then
-                For col = 1 To GetLastCol(objSheet)
+                For col = 1 To objSheet.UsedRange.Columns.Count
                     objNewSheet.Cells(newRow, col).Value = objSheet.Cells(row, col).Value
                     If col = 6 Then objNewSheet.Cells(newRow, col).Value = Round(objSheet.Cells(row, col).Value, 3)
                 Next
@@ -42,8 +39,10 @@ Sub testfirst()
             End If
         Next
 
+        RemoveEmptyColumns objNewSheet
+
         If newRow > 2 Then
-            objNewWorkbook.SaveAs outputFolder & store & ".xlsx"
+            objNewWorkbook.SaveAs outputFolder & "\" & store & ".xlsx"
             objNewWorkbook.Close False
             LogMessage objLogFile, "File created: " & store & ".xlsx"
         Else
@@ -56,17 +55,26 @@ Sub testfirst()
     objLogFile.Close
 End Sub
 
-' Функція отримання останнього рядка
 Function GetLastRow(sheet)
     GetLastRow = sheet.Cells(sheet.Rows.Count, 1).End(-4162).Row
 End Function
 
-' Функція отримання останньої колонки
-Function GetLastCol(sheet)
-    GetLastCol = sheet.Cells(1, sheet.Columns.Count).End(-4159).Column
-End Function
+Sub RemoveEmptyColumns(sheet)
+    Dim col As Integer, lastRow As Integer, isEmpty As Boolean
+    lastRow = GetLastRow(sheet)
+    
+    For col = sheet.UsedRange.Columns.Count To 1 Step -1
+        isEmpty = True
+        For row = 2 To lastRow
+            If sheet.Cells(row, col).Value <> "" Then
+                isEmpty = False
+                Exit For
+            End If
+        Next
+        If isEmpty Then sheet.Columns(col).Delete
+    Next
+End Sub
 
-' Функція логування
 Sub LogMessage(logFile, message)
     logFile.WriteLine Now & " - " & message
 End Sub
